@@ -16,7 +16,7 @@ services:
       start_period: 5s
 
   sonarqube:
-    image: sonarqube:lts-community
+    image: sonarqube:community
     restart: unless-stopped
     depends_on:
       db:
@@ -33,6 +33,12 @@ services:
       - sq_extensions:/opt/sonarqube/extensions
       - sq_logs:/opt/sonarqube/logs
       - sq_temp:/opt/sonarqube/temp
+    healthcheck:
+      test: wget -qO- http://localhost:9000/api/system/status | grep -q -e '"status":"UP"' -e '"status":"DB_MIGRATION_NEEDED"' -e '"status":"DB_MIGRATION_RUNNING"'
+      interval: 20s
+      timeout: 10s
+      start_period: 10s
+      retries: 5
 
   pgadmin:
     image: dpage/pgadmin4:8
