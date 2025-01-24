@@ -1,0 +1,103 @@
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: sonarqube
+    restart: unless-stopped
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ 'CMD-SHELL', 'pg_isready', '-d', 'sonarqube' ]
+      interval: 5s
+      timeout: 4s
+      retries: 6
+      start_period: 5s
+
+  sonarqube:
+    image: sonarqube:lts-community
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${PORT_SONARQUBE}:9000"
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://db:5432/sonarqube
+      SONAR_JDBC_USERNAME: ${DB_USER}
+      SONAR_JDBC_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - sq_conf:/opt/sonarqube/conf
+      - sq_data:/opt/sonarqube/data
+      - sq_extensions:/opt/sonarqube/extensions
+      - sq_logs:/opt/sonarqube/logs
+      - sq_temp:/opt/sonarqube/temp
+
+  pgadmin:
+    image: dpage/pgadmin4:8
+    restart: unless-stopped
+    ports:
+      - "${PORT_PGADMIN}:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_USER}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
+  backup:
+    image: prodrigestivill/postgres-backup-local
+    restart: unless-stopped
+    volumes:
+      - backup:/backups
+    links:
+      - db
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - POSTGRES_HOST=db
+      - POSTGRES_DB=sonarqube
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - BACKUP_ON_START=TRUE
+      - SCHEDULE=@daily
+      - BACKUP_KEEP_DAYS=7
+      - BACKUP_KEEP_WEEKS=4
+      - BACKUP_KEEP_MONTHS=6
+    profiles:
+      - test
+      - production
+
+volumes:
+  pg_data:
+    name: ${VOLUME_DB}
+    external: true
+
+  sq_conf:
+    name: ${VOLUME_SQ_CONF}
+    external: true
+
+  sq_data:
+    name: ${VOLUME_SQ_DATA}
+    external: true
+
+  sq_extensions:
+    name: ${VOLUME_SQ_EXTENSIONS}
+    external: true
+
+  sq_logs:
+    name: ${VOLUME_SQ_LOGS}
+    external: true
+
+  sq_temp:
+    name: ${VOLUME_SQ_TEMP}
+    external: true
+
+  pgadmin_data:
+    name: ${VOLUME_PGADMIN}
+    external: true
+
+  backup:
+    name: ${VOLUME_BACKUP}
+    external: true
